@@ -15,6 +15,9 @@ const loginPageStyles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
     paddingHorizontal: spacing[5],
     paddingTop: spacing[6],
     paddingBottom: spacing[8],

@@ -6,9 +6,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flex: 1,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: spacing[5],
+    paddingVertical: spacing[8],
   },
 });
 
