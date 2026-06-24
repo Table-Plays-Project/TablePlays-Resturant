@@ -29,13 +29,14 @@ import styles from './styles';
 export default function EditProfile(): JSX.Element {
   const { user, setAuth } = AuthContext.useAuth();
 
-  const [firstName, setFirstName] = useState<string>(
-    user?.user_metadata?.first_name ?? '',
+  const [firstName, setFirstName] = useState(
+    user?.user_metadata?.first_name ?? user?.user_metadata?.name ?? '',
   );
-  const [lastName, setLastName] = useState<string>(
+  const [lastName, setLastName] = useState(
     user?.user_metadata?.last_name ?? '',
   );
-  const { profileImage, setProfileImage, avatarSource } = ProfileContext.useProfile();
+  const { profileImage, setProfileImage, avatarSource } =
+    ProfileContext.useProfile();
   const [localImage, setLocalImage] = useState<string | null>(profileImage);
   const [error, setError] = useState<string | null>(null);
   const [lightboxVisible, setLightboxVisible] = useState(false);
@@ -114,9 +115,11 @@ export default function EditProfile(): JSX.Element {
       } else {
         router.replace('/(private)/profile/page');
       }
-    } catch (err) {
+    } catch (e) {
       const message =
-        err instanceof Error ? err.message : 'An unexpected error occurred.';
+        e instanceof Error
+          ? e.message
+          : 'Profile update failed. Please try again.';
       if (Platform.OS === 'web') {
         alert(message);
       } else {
@@ -136,19 +139,25 @@ export default function EditProfile(): JSX.Element {
         >
           <View style={styles.header}>
             <NavigationButton
-              onPress={() => router.canGoBack() ? router.back() : router.replace('/(private)/profile/page')}
+              onPress={() =>
+                router.canGoBack()
+                  ? router.back()
+                  : router.replace('/(private)/profile/page')
+              }
               arrow="arrow-back"
             />
             <Text style={styles.headerTitle}>EDIT PROFILE</Text>
-            <View style={styles.avatarSmall}>
-              <Text style={styles.avatarSmallText}>{initials}</Text>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarText}>{initials}</Text>
             </View>
           </View>
 
           <View style={styles.profileImageSection}>
             <Pressable
-              onPress={() => (displayImage || avatarSource) && setLightboxVisible(true)}
-              style={styles.profileImageWrapper}
+              onPress={() =>
+                (displayImage || avatarSource) && setLightboxVisible(true)
+              }
+              style={styles.profileImageContainer}
             >
               {displayImage ? (
                 <Image
@@ -164,11 +173,7 @@ export default function EditProfile(): JSX.Element {
                   resizeMode="cover"
                 />
               ) : (
-                <View style={styles.profileImagePlaceholder}>
-                  <Text style={styles.profileImagePlaceholderText}>
-                    {initials}
-                  </Text>
-                </View>
+                <Text style={styles.profileInitials}>{initials}</Text>
               )}
             </Pressable>
             <Pressable
@@ -228,33 +233,41 @@ export default function EditProfile(): JSX.Element {
             </View>
           ) : null}
 
-          <TextInput
-            style={styles.inputField}
-            value={firstName}
-            onChangeText={setFirstName}
-            placeholder="First Name"
-            placeholderTextColor={colors.textMuted}
-            textContentType="givenName"
-            autoCapitalize="words"
-          />
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>First Name</Text>
+            <TextInput
+              style={styles.inputPill}
+              value={firstName}
+              onChangeText={setFirstName}
+              placeholder="First Name"
+              placeholderTextColor={colors.textMuted}
+              textContentType="givenName"
+              autoCapitalize="words"
+            />
+          </View>
 
-          <TextInput
-            style={styles.inputField}
-            value={lastName}
-            onChangeText={setLastName}
-            placeholder="Last Name"
-            placeholderTextColor={colors.textMuted}
-            textContentType="familyName"
-            autoCapitalize="words"
-          />
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Last Name</Text>
+            <TextInput
+              style={styles.inputPill}
+              value={lastName}
+              onChangeText={setLastName}
+              placeholder="Last Name"
+              placeholderTextColor={colors.textMuted}
+              textContentType="familyName"
+              autoCapitalize="words"
+            />
+          </View>
 
-          <TextInput
-            style={styles.inputFieldDisabled}
-            value={email}
-            editable={false}
-            placeholder="Email"
-            placeholderTextColor={colors.textMuted}
-          />
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Email</Text>
+            <TextInput
+              style={styles.inputDisabled}
+              value={email}
+              editable={false}
+              selectTextOnFocus={false}
+            />
+          </View>
 
           <Pressable
             onPress={() => router.push('/(private)/avatar/page')}

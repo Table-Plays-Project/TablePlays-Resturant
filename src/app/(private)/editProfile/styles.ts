@@ -38,9 +38,9 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     ...TEXT_SHADOW,
   },
-  avatarSmall: {
-    width: 44,
-    height: 44,
+  avatarCircle: {
+    width: 56,
+    height: 56,
     borderRadius: borderRadius.full,
     backgroundColor: colors.ctaSolid,
     alignItems: 'center',
@@ -48,10 +48,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.4)',
   },
-  avatarSmallText: {
+  avatarText: {
     fontFamily: fonts.bold,
-    fontSize: fontSize.base,
+    fontSize: fontSize.xl,
     color: colors.textInverse,
+    ...TEXT_SHADOW,
   },
   profileImageSection: {
     alignSelf: 'center',
@@ -59,28 +60,22 @@ const styles = StyleSheet.create({
     height: 110,
     marginBottom: spacing[6],
   },
-  profileImageWrapper: {
+  profileImageContainer: {
     width: 100,
     height: 100,
     borderRadius: borderRadius.full,
     overflow: 'hidden',
-  },
-  profileImage: {
-    width: 100,
-    height: 100,
-    borderRadius: borderRadius.full,
-  },
-  profileImagePlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: borderRadius.full,
     backgroundColor: colors.ctaSolid,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
     borderColor: 'rgba(255, 255, 255, 0.4)',
   },
-  profileImagePlaceholderText: {
+  profileImage: {
+    width: 100,
+    height: 100,
+  },
+  profileInitials: {
     fontFamily: fonts.bold,
     fontSize: fontSize['3xl'],
     color: colors.textInverse,
@@ -104,7 +99,18 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
-  inputField: {
+  inputContainer: {
+    marginBottom: spacing[3],
+  },
+  inputLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSize.sm,
+    color: colors.textInverse,
+    marginBottom: spacing[2],
+    marginLeft: spacing[2],
+    ...TEXT_SHADOW,
+  },
+  inputPill: {
     backgroundColor: '#FFFFFF',
     borderRadius: borderRadius.full,
     paddingVertical: spacing[3],
@@ -113,9 +119,8 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: fontSize.base,
     color: colors.textPrimary,
-    marginBottom: spacing[3],
   },
-  inputFieldDisabled: {
+  inputDisabled: {
     backgroundColor: '#FFFFFF',
     borderRadius: borderRadius.full,
     paddingVertical: spacing[3],
@@ -124,7 +129,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: fontSize.base,
     color: colors.textMuted,
-    marginBottom: spacing[3],
     opacity: 0.6,
   },
   menuRow: {
@@ -138,6 +142,7 @@ const styles = StyleSheet.create({
   },
   menuRowPressed: {
     opacity: 0.8,
+    transform: [{ scale: 0.98 }],
   },
   menuIconCircle: {
     width: 44,
@@ -168,23 +173,22 @@ const styles = StyleSheet.create({
     ...TEXT_SHADOW,
   },
   errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.error,
     borderRadius: borderRadius.lg,
     paddingVertical: spacing[3],
     paddingHorizontal: spacing[4],
     marginBottom: spacing[4],
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[2],
   },
   errorText: {
     fontFamily: fonts.medium,
     fontSize: fontSize.sm,
     color: colors.textInverse,
+    marginLeft: spacing[2],
     flex: 1,
   },
   saveWrap: {
-    paddingHorizontal: spacing[4],
     marginTop: spacing[4],
   },
   lightboxBackdrop: {

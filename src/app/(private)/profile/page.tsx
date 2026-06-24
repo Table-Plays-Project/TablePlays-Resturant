@@ -24,7 +24,7 @@ import styles from './styles';
 
 type MenuItemProps = {
   icon: keyof typeof Ionicons.glyphMap;
-  iconBgColor: string;
+  iconBg: string;
   label: string;
   onPress?: () => void;
   trailing?: React.ReactNode;
@@ -32,7 +32,7 @@ type MenuItemProps = {
 
 function MenuItem({
   icon,
-  iconBgColor,
+  iconBg,
   label,
   onPress,
   trailing,
@@ -45,7 +45,7 @@ function MenuItem({
         pressed && onPress && styles.menuRowPressed,
       ]}
     >
-      <View style={[styles.menuIconCircle, { backgroundColor: iconBgColor }]}>
+      <View style={[styles.menuIconCircle, { backgroundColor: iconBg }]}>
         <Ionicons
           name={icon}
           size={22}
@@ -66,11 +66,11 @@ function MenuItem({
   );
 }
 
-type ToggleIndicatorProps = {
+type ToggleBadgeProps = {
   isOn: boolean;
 };
 
-function ToggleIndicator({ isOn }: ToggleIndicatorProps): JSX.Element {
+function ToggleBadge({ isOn }: ToggleBadgeProps): JSX.Element {
   return (
     <View
       style={[
@@ -86,8 +86,8 @@ function ToggleIndicator({ isOn }: ToggleIndicatorProps): JSX.Element {
 export default function Profile(): JSX.Element {
   const { user, setAuth } = AuthContext.useAuth();
 
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(false);
-  const [musicEnabled, setMusicEnabled] = useState<boolean>(true);
+  const [soundOn, setSoundOn] = useState(false);
+  const [musicOn, setMusicOn] = useState(true);
   const { profileImage, avatarSource } = ProfileContext.useProfile();
 
   const firstName =
@@ -112,9 +112,9 @@ export default function Profile(): JSX.Element {
       }
       setAuth(null);
       router.replace('/(public)/(auth)/signin/page');
-    } catch (err) {
+    } catch (e) {
       const message =
-        err instanceof Error ? err.message : 'An unexpected error occurred.';
+        e instanceof Error ? e.message : 'Sign out failed. Please try again.';
       if (Platform.OS === 'web') {
         alert(message);
       } else {
@@ -150,67 +150,65 @@ export default function Profile(): JSX.Element {
               arrow="arrow-back"
             />
             <Text style={styles.headerTitle}>SETTINGS</Text>
-            <View style={styles.avatarSmall}>
+            <View style={styles.avatarCircle}>
               {profileImage ? (
                 <Image
                   source={{ uri: profileImage }}
-                  style={styles.avatarSmallImage}
+                  style={styles.avatarImage}
                   contentFit="cover"
                 />
               ) : avatarSource ? (
                 <RNImage
                   source={avatarSource}
-                  style={styles.avatarSmallImage}
+                  style={styles.avatarImage}
                   resizeMode="cover"
                 />
               ) : (
-                <Text style={styles.avatarSmallText}>{initials}</Text>
+                <Text style={styles.avatarText}>{initials}</Text>
               )}
             </View>
           </View>
 
           <MenuItem
             icon="person"
-            iconBgColor={colors.success}
+            iconBg={colors.success}
             label="Edit Profile"
             onPress={() => router.push('/(private)/editProfile/page')}
           />
 
           <MenuItem
             icon="color-palette"
-            iconBgColor={colors.ctaSolid}
+            iconBg={colors.ctaSolid}
             label="Change Avatar"
             onPress={() => router.push('/(private)/avatar/page')}
           />
 
           <MenuItem
             icon="volume-high"
-            iconBgColor={colors.gradientStart}
+            iconBg={colors.gradientStart}
             label="Sound"
-            onPress={() => setSoundEnabled((prev) => !prev)}
-            trailing={<ToggleIndicator isOn={soundEnabled} />}
+            onPress={() => setSoundOn((prev) => !prev)}
+            trailing={<ToggleBadge isOn={soundOn} />}
           />
 
           <MenuItem
             icon="musical-notes"
-            iconBgColor={colors.gradientEnd}
+            iconBg={colors.gradientEnd}
             label="Music"
-            onPress={() => setMusicEnabled((prev) => !prev)}
-            trailing={<ToggleIndicator isOn={musicEnabled} />}
-          />
-
-          <MenuItem
-            icon="card"
-            iconBgColor={colors.accent}
-            label="Manage Stamp Card"
-            onPress={() => {}}
+            onPress={() => setMusicOn((prev) => !prev)}
+            trailing={<ToggleBadge isOn={musicOn} />}
           />
 
           <MenuItem
             icon="pricetag"
-            iconBgColor={colors.primary}
-            label="Manage Promo Code"
-            onPress={() => {}}
+            iconBg={colors.accent}
+            label="Voucher & Stamp Cards"
+          />
+
+          <MenuItem
+            icon="people"
+            iconBg={colors.gradientStart}
+            label="Friends List"
           />
 
           <Pressable
@@ -220,7 +218,7 @@ export default function Profile(): JSX.Element {
               pressed && styles.menuRowPressed,
             ]}
           >
-            <View style={styles.logoutIconCircle}>
+            <View style={[styles.menuIconCircle, styles.logoutIconCircle]}>
               <Ionicons
                 name="log-out-outline"
                 size={22}

@@ -14,10 +14,15 @@ import styles from './styles';
 type QuickAction = {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
+  route?: string;
 };
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { icon: 'game-controller', label: 'Start Game' },
+  {
+    icon: 'game-controller',
+    label: 'Start Game',
+    route: '/(private)/selectGame/page',
+  },
   { icon: 'people', label: 'Manage Tables' },
   { icon: 'ribbon', label: 'Stamp Cards' },
   { icon: 'time', label: 'History' },
@@ -91,6 +96,9 @@ export default function Dashboard(): JSX.Element {
             {QUICK_ACTIONS.map((action) => (
               <Pressable
                 key={action.label}
+                onPress={() =>
+                  action.route && router.push(action.route as never)
+                }
                 style={({ pressed }) => [
                   styles.actionCard,
                   pressed && styles.actionCardPressed,
@@ -110,7 +118,12 @@ export default function Dashboard(): JSX.Element {
           </View>
 
           <View style={styles.ctaSection}>
-            <ActionButton onPress={() => {}} text="START GAME" />
+            <ActionButton
+              onPress={() =>
+                router.push('/(private)/selectGame/page' as never)
+              }
+              text="START GAME"
+            />
             <SecondaryButton onPress={() => {}} text="MANAGE TABLES" />
           </View>
         </ScrollView>

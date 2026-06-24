@@ -39,9 +39,9 @@ const styles = StyleSheet.create({
     letterSpacing: -0.25,
     ...TEXT_SHADOW,
   },
-  avatarSmall: {
-    width: 44,
-    height: 44,
+  avatarCircle: {
+    width: 56,
+    height: 56,
     borderRadius: borderRadius.full,
     backgroundColor: colors.ctaSolid,
     alignItems: 'center',
@@ -49,19 +49,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.4)',
   },
-  avatarSmallImage: {
-    width: 44,
-    height: 44,
+  avatarImage: {
+    width: 56,
+    height: 56,
     borderRadius: borderRadius.full,
   },
-  avatarSmallText: {
+  avatarText: {
     fontFamily: fonts.bold,
-    fontSize: fontSize.base,
+    fontSize: fontSize.xl,
     color: colors.textInverse,
-  },
-  headingWrap: {
-    alignItems: 'center',
-    marginBottom: spacing[6],
+    ...TEXT_SHADOW,
   },
   menuRow: {
     flexDirection: 'row',
@@ -74,6 +71,7 @@ const styles = StyleSheet.create({
   },
   menuRowPressed: {
     opacity: 0.8,
+    transform: [{ scale: 0.98 }],
   },
   menuIconCircle: {
     width: 44,
@@ -127,13 +125,7 @@ const styles = StyleSheet.create({
     ...TEXT_SHADOW,
   },
   logoutIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: borderRadius.full,
     backgroundColor: colors.errorLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing[3],
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
