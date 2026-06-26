@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   ActivityIndicator,
@@ -6,6 +6,7 @@ import {
   AppState,
   AppStateStatus,
   BackHandler,
+  Pressable,
   SafeAreaView,
   ScrollView,
   Text,
@@ -16,10 +17,12 @@ import { Ionicons } from '@expo/vector-icons';
 import AppBackground from '@/components/AppBackground';
 import BubbleHeading from '@/components/BubbleHeading';
 import { ActionButton, NavigationButton } from '@/components/buttons';
+import AuthContext from '@/contexts/auth';
 import useGameSession from '@/hooks/game/useGameSession';
 import {
   cancelGameSession,
   createGameSession,
+  resetSessionToWaiting,
   startGame,
 } from '@/services/game';
 import { colors, fontSize } from '@/constants/theme';
@@ -32,6 +35,7 @@ function initialsFor(name: string): string {
 
 export default function CreateRoomPage(): JSX.Element {
   const { gameType } = useLocalSearchParams<{ gameType: string }>();
+  const { user } = AuthContext.useAuth();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -39,8 +43,15 @@ export default function CreateRoomPage(): JSX.Element {
   const [actionLoading, setActionLoading] = useState(false);
   const navigatedRef = useRef(false);
 
+  const accountName =
+    user?.user_metadata?.first_name ??
+    user?.user_metadata?.name ??
+    'Restaurant';
+
   const { session, players, loading, error, refetch } = useGameSession(
     sessionId,
+    user?.id ?? null,
+    accountName,
   );
 
   // Create room on mount
@@ -76,7 +87,16 @@ export default function CreateRoomPage(): JSX.Element {
     create();
   }, [sessionId, creating, gameType]);
 
-  // Navigate when game starts (status → active/spinning)
+  // Unmount cleanup — cancel session if navigating away unexpectedly
+  useEffect(() => {
+    return () => {
+      if (!navigatedRef.current && sessionId) {
+        cancelGameSession(sessionId).catch(() => {});
+      }
+    };
+  }, [sessionId]);
+
+  // Navigate when game starts
   useEffect(() => {
     if (navigatedRef.current || !sessionId) return;
     const status = session?.status;
@@ -114,7 +134,7 @@ export default function CreateRoomPage(): JSX.Element {
     };
   }, [sessionId]);
 
-  // Android hardware back → cancel session
+  // Android hardware back
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       handleExit();
@@ -123,9 +143,33 @@ export default function CreateRoomPage(): JSX.Element {
     return () => sub.remove();
   });
 
+  // Track player changes — notify when someone leaves
+  const prevPlayerCountRef = useRef(players.length);
+  const prevPlayerNamesRef = useRef<string[]>([]);
+  const playerKey = useMemo(
+    () => players.map((p) => p.id).join(','),
+    [players],
+  );
+  useEffect(() => {
+    const prevCount = prevPlayerCountRef.current;
+    const prevNames = prevPlayerNamesRef.current;
+    const currentNames = players.map((p) => p.player_name);
+
+    if (prevCount > 0 && players.length < prevCount) {
+      const left = prevNames.filter((n) => !currentNames.includes(n));
+      if (left.length > 0) {
+        Alert.alert('Player Left', `${left.join(', ')} left the game.`);
+      }
+    }
+
+    prevPlayerCountRef.current = players.length;
+    prevPlayerNamesRef.current = currentNames;
+  }, [playerKey]);
+
   async function handleExit(): Promise<void> {
     if (actionLoading) return;
     setActionLoading(true);
+    navigatedRef.current = true;
     try {
       if (sessionId) await cancelGameSession(sessionId);
     } catch {
@@ -230,6 +274,9 @@ export default function CreateRoomPage(): JSX.Element {
                 color={colors.textInverse}
               />
               <Text style={styles.errorText}>{error}</Text>
+              <Pressable onPress={refetch} style={styles.retryButton}>
+                <Text style={styles.retryText}>Retry</Text>
+              </Pressable>
             </View>
           ) : null}
 

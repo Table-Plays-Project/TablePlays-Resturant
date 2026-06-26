@@ -34,14 +34,20 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 44,
   },
-  centerWrap: {
-    flex: 1,
+  statusCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: borderRadius.xl,
+    paddingVertical: spacing[6],
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing[5],
-    gap: spacing[4],
+    marginBottom: spacing[6],
+    gap: spacing[2],
   },
-  statusText: {
+  statusCardFinished: {
+    backgroundColor: 'rgba(21, 128, 61, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(21, 128, 61, 0.4)',
+  },
+  statusLabel: {
     fontFamily: fonts.semiBold,
     fontSize: fontSize.base,
     lineHeight: 20,
@@ -49,38 +55,60 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     ...TEXT_SHADOW,
   },
-  roomCodeCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: borderRadius.xl,
-    paddingVertical: spacing[6],
-    alignItems: 'center',
-    marginBottom: spacing[6],
-  },
-  roomCodeLabel: {
-    fontFamily: fonts.semiBold,
-    fontSize: fontSize.sm,
-    lineHeight: 18,
-    color: 'rgba(255, 255, 255, 0.8)',
-    letterSpacing: 1,
-    ...TEXT_SHADOW,
-  },
-  roomCodeValue: {
+  roundText: {
     fontFamily: fonts.bold,
-    fontSize: fontSize['4xl'],
-    lineHeight: 50,
-    color: colors.textInverse,
-    letterSpacing: 4,
-    marginTop: spacing[2],
-    fontVariant: ['tabular-nums'],
-    ...TEXT_SHADOW,
-  },
-  roomCodeHint: {
-    fontFamily: fonts.regular,
     fontSize: fontSize.sm,
     lineHeight: 18,
     color: 'rgba(255, 255, 255, 0.7)',
-    marginTop: spacing[2],
+    letterSpacing: 1,
+  },
+  resultCard: {
+    backgroundColor: colors.ctaSolid,
+    borderRadius: borderRadius.xl,
+    paddingVertical: spacing[4],
+    paddingHorizontal: spacing[5],
+    marginBottom: spacing[6],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[4],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  resultAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: borderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  resultAvatarText: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize.xl,
+    color: colors.textInverse,
+  },
+  resultInfo: {
+    flex: 1,
+  },
+  resultName: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize.xl,
+    lineHeight: 26,
+    color: colors.textInverse,
     ...TEXT_SHADOW,
+  },
+  resultLabel: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize.xs,
+    lineHeight: 14,
+    color: 'rgba(255, 255, 255, 0.85)',
+    letterSpacing: 1,
+    marginTop: spacing[1],
   },
   errorBanner: {
     backgroundColor: colors.error,
@@ -99,18 +127,6 @@ const styles = StyleSheet.create({
     color: colors.textInverse,
     flex: 1,
   },
-  retryButton: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    borderRadius: borderRadius.full,
-    paddingVertical: spacing[1],
-    paddingHorizontal: spacing[3],
-  },
-  retryText: {
-    fontFamily: fonts.bold,
-    fontSize: fontSize.xs,
-    lineHeight: 14,
-    color: colors.textInverse,
-  },
   sectionTitle: {
     fontFamily: fonts.bold,
     fontSize: fontSize.md,
@@ -122,19 +138,6 @@ const styles = StyleSheet.create({
   },
   loadingIndicator: {
     marginTop: spacing[8],
-  },
-  emptyWrap: {
-    alignItems: 'center',
-    paddingVertical: spacing[8],
-    gap: spacing[3],
-  },
-  emptyText: {
-    fontFamily: fonts.medium,
-    fontSize: fontSize.base,
-    lineHeight: 20,
-    color: 'rgba(255, 255, 255, 0.6)',
-    textAlign: 'center',
-    ...TEXT_SHADOW,
   },
   playersList: {
     gap: spacing[3],
@@ -149,6 +152,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
     gap: spacing[3],
   },
+  playerRowPayer: {
+    backgroundColor: 'rgba(253, 94, 129, 0.25)',
+    borderWidth: 1,
+    borderColor: colors.ctaSolid,
+  },
   playerAvatar: {
     width: 44,
     height: 44,
@@ -158,6 +166,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  playerAvatarPayer: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   playerAvatarText: {
     fontFamily: fonts.bold,
@@ -171,6 +183,22 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: colors.textInverse,
     ...TEXT_SHADOW,
+  },
+  paysBadge: {
+    backgroundColor: colors.ctaSolid,
+    borderRadius: borderRadius.full,
+    paddingVertical: spacing[1],
+    paddingHorizontal: spacing[3],
+  },
+  paysBadgeText: {
+    fontFamily: fonts.bold,
+    fontSize: fontSize.xs,
+    lineHeight: 14,
+    color: colors.textInverse,
+    letterSpacing: 0.5,
+  },
+  actions: {
+    gap: spacing[3],
   },
 });
 
