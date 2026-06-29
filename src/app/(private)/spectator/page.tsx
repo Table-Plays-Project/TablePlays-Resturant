@@ -1,96 +1,66 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, AppState, AppStateStatus, BackHandler, View } from 'react-native';
+import { Asset } from 'expo-asset';
 import { router, useLocalSearchParams } from 'expo-router';
-import {
-  ActivityIndicator,
-  Alert,
-  AppState,
-  AppStateStatus,
-  BackHandler,
-  SafeAreaView,
-  ScrollView,
-  Text,
-  View,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 
-import AppBackground from '@/components/AppBackground';
-import BubbleHeading from '@/components/BubbleHeading';
-import { ActionButton, NavigationButton, SecondaryButton } from '@/components/buttons';
+import { SpinWheelScreen } from '@/components/games/SpinWheel';
+import type { WheelPlayer } from '@/components/games/SpinWheel';
 import AuthContext from '@/contexts/auth';
+import AVATARS from '@/constants/avatars';
 import useGameSession from '@/hooks/game/useGameSession';
 import {
   cancelGameSession,
   finishSession,
+  kickOfflinePlayer,
   resetSessionToWaiting,
   resolveExpiredChallenge,
+  spinWheel,
 } from '@/services/game';
-import { colors, fontSize } from '@/constants/theme';
+import { ESCAPE_CHALLENGE } from '@/components/games/SpinWheel/wheelConfig';
 
-import styles from './styles';
+const avatarAssetMap = new Map<string, number>();
+AVATARS.forEach((a) => {
+  avatarAssetMap.set(a.id, a.source as number);
+});
 
-const ESCAPE_GRACE_MS = 1000;
-
-function initialsFor(name: string): string {
-  return name.trim().charAt(0).toUpperCase() || '?';
-}
-
-/** Visual-only countdown — server is the sole authority on timing. */
-function useCountdownSeconds(deadline: string | null): number {
-  const [seconds, setSeconds] = useState<number>(() =>
-    deadline
-      ? Math.max(0, Math.ceil((new Date(deadline).getTime() - Date.now()) / 1000))
-      : 0,
-  );
+function useAvatarUris(avatarIds: string[]): Map<string, string> {
+  const [uriMap, setUriMap] = useState<Map<string, string>>(new Map());
+  const loadedRef = useRef(new Set<string>());
 
   useEffect(() => {
-    if (!deadline) {
-      setSeconds(0);
-      return;
-    }
-    const deadlineMs = new Date(deadline).getTime();
-    function tick(): void {
-      setSeconds(Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000)));
-    }
-    tick();
-    const interval = setInterval(tick, 250);
-    return () => clearInterval(interval);
-  }, [deadline]);
+    const toLoad = avatarIds.filter(
+      (id) => !loadedRef.current.has(id) && avatarAssetMap.has(id),
+    );
+    if (toLoad.length === 0) return;
 
-  return seconds;
-}
+    Promise.all(
+      toLoad.map(async (id) => {
+        const source = avatarAssetMap.get(id)!;
+        const asset = Asset.fromModule(source);
+        await asset.downloadAsync();
+        return { id, uri: asset.localUri ?? asset.uri };
+      }),
+    ).then((results) => {
+      setUriMap((prev) => {
+        const next = new Map(prev);
+        results.forEach((r) => {
+          if (r.uri) {
+            next.set(r.id, r.uri);
+            loadedRef.current.add(r.id);
+          }
+        });
+        return next;
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [avatarIds.join(',')]);
 
-function statusLabel(status: string | undefined): string {
-  switch (status) {
-    case 'active':
-      return 'Waiting for players to spin...';
-    case 'spinning':
-      return 'Wheel is spinning!';
-    case 'finished':
-      return 'Game finished';
-    default:
-      return 'Game in progress';
-  }
-}
-
-function statusIcon(status: string | undefined): keyof typeof Ionicons.glyphMap {
-  switch (status) {
-    case 'active':
-      return 'hourglass-outline';
-    case 'spinning':
-      return 'sync-circle';
-    case 'finished':
-      return 'checkmark-circle';
-    default:
-      return 'game-controller';
-  }
+  return uriMap;
 }
 
 export default function SpectatorPage(): JSX.Element {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
   const { user } = AuthContext.useAuth();
-  const [actionLoading, setActionLoading] = useState(false);
-  const navigatedRef = useRef(false);
-
   const accountName =
     user?.user_metadata?.first_name ??
     user?.user_metadata?.name ??
@@ -101,100 +71,61 @@ export default function SpectatorPage(): JSX.Element {
     user?.id ?? null,
     accountName,
   );
+  const navigatedAway = useRef(false);
 
+  const isSpinning = session?.status === 'spinning';
   const payerIndex =
     typeof session?.game_state?.payer_index === 'number'
       ? session.game_state.payer_index
       : null;
-  const payerPlayer = payerIndex !== null ? players[payerIndex] : null;
-  const isFinished = session?.status === 'finished';
-  const duration = session?.created_at && session?.ended_at
-    ? Math.round(
-        (new Date(session.ended_at).getTime() -
-          new Date(session.created_at).getTime()) /
-          1000,
-      )
-    : null;
-  const durationText = duration !== null
-    ? duration < 60
-      ? `${duration}s`
-      : `${Math.floor(duration / 60)}m ${duration % 60}s`
-    : null;
-  const roundNumber =
-    typeof session?.game_state?.round === 'number'
-      ? session.game_state.round
-      : 1;
+  const spinStartedAt =
+    typeof session?.game_state?.spin_started_at === 'string'
+      ? session.game_state.spin_started_at
+      : null;
 
-  // Escape-challenge: read-only for the restaurant owner — they have no
-  // session_players row, so they can never be challenge_player_id.
+  const excludedPayerIds = useMemo(
+    () =>
+      Array.isArray(session?.game_state?.excluded_payer_ids)
+        ? (session.game_state.excluded_payer_ids as string[])
+        : [],
+    [session?.game_state?.excluded_payer_ids],
+  );
+  const isEscapeContinuation = excludedPayerIds.length > 0;
+  const rawChallengeStatus = session?.game_state?.challenge_status;
+
   const challengeStatus =
-    session?.game_state?.challenge_status === 'pending' ? 'pending' : null;
-  const challengeDeadline =
-    typeof session?.game_state?.challenge_deadline === 'string'
-      ? session.game_state.challenge_deadline
+    rawChallengeStatus === 'pending' || rawChallengeStatus === 'failed'
+      ? rawChallengeStatus
       : null;
   const challengePlayerId =
     typeof session?.game_state?.challenge_player_id === 'string'
       ? session.game_state.challenge_player_id
       : null;
+  const challengeStart =
+    typeof session?.game_state?.challenge_start === 'number'
+      ? session.game_state.challenge_start
+      : null;
+  const challengeStep =
+    typeof session?.game_state?.challenge_step === 'number'
+      ? session.game_state.challenge_step
+      : null;
+  const challengeDeadline =
+    typeof session?.game_state?.challenge_deadline === 'string'
+      ? session.game_state.challenge_deadline
+      : null;
+
   const challengedPlayer = challengePlayerId
     ? players.find((p) => p.id === challengePlayerId) ?? null
     : null;
-  const challengeSeconds = useCountdownSeconds(
-    challengeStatus === 'pending' ? challengeDeadline : null,
-  );
 
-  // Safety net: the restaurant owner's device also polls this session
-  // and can finalize an expired challenge if every player's device
-  // happened to die. resolve_expired_challenge's atomic UPDATE...WHERE
-  // gate makes it safe for multiple devices to race on this.
-  const resolvedDeadlineRef = useRef<string | null>(null);
   useEffect(() => {
-    if (challengeStatus !== 'pending' || !challengeDeadline || !sessionId) return;
-    if (resolvedDeadlineRef.current === challengeDeadline) return;
-
-    const msUntilCheck =
-      new Date(challengeDeadline).getTime() - Date.now() + ESCAPE_GRACE_MS;
-
-    const timer = setTimeout(() => {
-      resolvedDeadlineRef.current = challengeDeadline;
-      resolveExpiredChallenge(sessionId).catch(() => {});
-    }, Math.max(0, msUntilCheck));
-
-    return () => clearTimeout(timer);
-  }, [challengeStatus, challengeDeadline, sessionId]);
-
-  // Unmount cleanup
-  useEffect(() => {
+    if (__DEV__) console.log('[Screen] SpectatorPage MOUNTED');
     return () => {
-      if (!navigatedRef.current && sessionId) {
-        cancelGameSession(sessionId).catch(() => {});
-      }
+      if (__DEV__) console.log('[Screen] SpectatorPage UNMOUNTED');
     };
-  }, [sessionId]);
+  }, []);
 
-  // Navigate to dashboard on abandoned/finished
-  useEffect(() => {
-    if (navigatedRef.current) return;
-    if (session?.status === 'abandoned') {
-      navigatedRef.current = true;
-      router.replace('/(private)/dashboard/page');
-    }
-  }, [session?.status]);
-
-  // If status resets to waiting (shouldn't happen in spectator, but guard)
-  useEffect(() => {
-    if (navigatedRef.current || !sessionId) return;
-    if (session?.status === 'waiting') {
-      navigatedRef.current = true;
-      router.replace({
-        pathname: '/(private)/createRoom/page',
-        params: { gameType: session?.game_type ?? 'spin_wheel' },
-      } as never);
-    }
-  }, [session?.status, sessionId]);
-
-  // Host background cleanup — 15s
+  // Background > 15 seconds → cancel and go to dashboard
   const bgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!sessionId) return;
@@ -203,7 +134,10 @@ export default function SpectatorPage(): JSX.Element {
       (state: AppStateStatus) => {
         if (state === 'background' || state === 'inactive') {
           bgTimerRef.current = setTimeout(() => {
+            if (navigatedAway.current) return;
+            navigatedAway.current = true;
             cancelGameSession(sessionId).catch(() => {});
+            router.replace('/(private)/dashboard/page');
           }, 15_000);
         } else if (state === 'active') {
           if (bgTimerRef.current) {
@@ -219,6 +153,27 @@ export default function SpectatorPage(): JSX.Element {
     };
   }, [sessionId]);
 
+  // When status resets to waiting → back to createRoom
+  useEffect(() => {
+    if (navigatedAway.current || !sessionId) return;
+    if (session?.status === 'waiting') {
+      navigatedAway.current = true;
+      router.replace({
+        pathname: '/(private)/createRoom/page',
+        params: { gameType: session?.game_type ?? 'spin_wheel', existingSessionId: sessionId, existingRoomCode: session?.room_code ?? '' },
+      } as never);
+    }
+  }, [session?.status, sessionId]);
+
+  // Abandoned/finished detection
+  useEffect(() => {
+    if (navigatedAway.current) return;
+    if (session?.status === 'abandoned' || session?.status === 'finished') {
+      navigatedAway.current = true;
+      router.replace('/(private)/dashboard/page');
+    }
+  }, [session?.status]);
+
   // Android hardware back
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -228,17 +183,17 @@ export default function SpectatorPage(): JSX.Element {
     return () => sub.remove();
   });
 
-  // Stable key — only changes on actual join/leave, not every poll
+  // Player change tracking
   const playerKey = useMemo(
     () => players.map((p) => p.id).join(','),
     [players],
   );
-
-  const prevCountRef = useRef(players.length);
-  const prevNamesRef = useRef<string[]>([]);
+  const prevPlayerCountRef = useRef(players.length);
+  const prevPlayerNamesRef = useRef<string[]>([]);
   useEffect(() => {
-    const prevCount = prevCountRef.current;
-    const prevNames = prevNamesRef.current;
+    if (navigatedAway.current || !sessionId) return;
+    const prevCount = prevPlayerCountRef.current;
+    const prevNames = prevPlayerNamesRef.current;
     const currentNames = players.map((p) => p.player_name);
 
     if (prevCount > 0 && players.length < prevCount) {
@@ -248,19 +203,92 @@ export default function SpectatorPage(): JSX.Element {
       }
     }
 
-    prevCountRef.current = players.length;
-    prevNamesRef.current = currentNames;
+    prevPlayerCountRef.current = players.length;
+    prevPlayerNamesRef.current = currentNames;
 
     if (players.length > 0 && players.length < 2 && session?.status !== 'finished') {
-      navigatedRef.current = true;
-      resetSessionToWaiting(sessionId!).then(() => {
+      navigatedAway.current = true;
+      resetSessionToWaiting(sessionId).then(() => {
         router.replace({
           pathname: '/(private)/createRoom/page',
-          params: { gameType: session?.game_type ?? 'spin_wheel' },
+          params: { gameType: session?.game_type ?? 'spin_wheel', existingSessionId: sessionId, existingRoomCode: session?.room_code ?? '' },
         } as never);
       });
     }
-  }, [playerKey, sessionId, session?.status, session?.game_type]);
+  }, [playerKey, sessionId, session?.status, session?.game_type, session?.room_code]);
+
+  // Avatar resolution
+  const avatarIds = useMemo(
+    () => players.map((p) => p.avatar_id).filter((id): id is string => id !== null),
+    [players],
+  );
+  const avatarUris = useAvatarUris(avatarIds);
+
+  const wheelPlayers: WheelPlayer[] = useMemo(() => {
+    return players.map((p) => {
+      const uri = p.avatar_id ? (avatarUris.get(p.avatar_id) ?? null) : null;
+      return {
+        id: p.id,
+        name: p.player_name,
+        avatarUri: uri,
+        avatarSource: null,
+      };
+    });
+  }, [players, avatarUris]);
+
+  // Spin logic — restaurant host always controls
+  const forceNewSpinRef = useRef(false);
+
+  const requestWinner = useCallback(async (): Promise<number> => {
+    const forceFresh = forceNewSpinRef.current;
+    forceNewSpinRef.current = false;
+
+    if (
+      !forceFresh &&
+      isEscapeContinuation &&
+      payerIndex !== null &&
+      payerIndex < players.length
+    ) {
+      return payerIndex;
+    }
+
+    if (!sessionId) throw new Error('No session');
+    const result = await spinWheel(sessionId);
+    if (result.error || result.payerIndex === null) {
+      throw new Error(result.error?.message ?? 'Spin failed');
+    }
+    if (result.payerIndex >= players.length) {
+      throw new Error('Player list out of sync. Please retry.');
+    }
+    return result.payerIndex;
+  }, [sessionId, payerIndex, players.length, isEscapeContinuation]);
+
+  async function doHostExit(): Promise<void> {
+    if (navigatedAway.current) return;
+    navigatedAway.current = true;
+    try {
+      if (sessionId) {
+        if (session?.status === 'spinning') {
+          await finishSession(sessionId);
+        } else {
+          await cancelGameSession(sessionId);
+        }
+      }
+    } catch { /* best-effort */ }
+    router.replace('/(private)/dashboard/page');
+  }
+
+  async function doBackToRoom(): Promise<void> {
+    if (navigatedAway.current || !sessionId) return;
+    navigatedAway.current = true;
+    try {
+      await resetSessionToWaiting(sessionId);
+    } catch { /* best-effort */ }
+    router.replace({
+      pathname: '/(private)/createRoom/page',
+      params: { gameType: session?.game_type ?? 'spin_wheel', existingSessionId: sessionId, existingRoomCode: session?.room_code ?? '' },
+    } as never);
+  }
 
   function handleBack(): void {
     Alert.alert(
@@ -268,180 +296,134 @@ export default function SpectatorPage(): JSX.Element {
       'What would you like to do?',
       [
         { text: 'Stay', style: 'cancel' },
-        {
-          text: 'Back to Room',
-          onPress: async () => {
-            if (navigatedRef.current) return;
-            navigatedRef.current = true;
-            try {
-              if (sessionId) await resetSessionToWaiting(sessionId);
-            } catch { /* best-effort */ }
-            router.replace({
-              pathname: '/(private)/createRoom/page',
-              params: { gameType: session?.game_type ?? 'spin_wheel' },
-            } as never);
-          },
-        },
-        {
-          text: 'End Game',
-          style: 'destructive',
-          onPress: async () => {
-            if (navigatedRef.current) return;
-            navigatedRef.current = true;
-            setActionLoading(true);
-            try {
-              if (sessionId) {
-                if (session?.status === 'spinning') {
-                  await finishSession(sessionId);
-                } else {
-                  await cancelGameSession(sessionId);
-                }
-              }
-            } catch { /* best-effort */ }
-            router.replace('/(private)/dashboard/page');
-          },
-        },
+        { text: 'Back to Room', onPress: doBackToRoom },
+        { text: 'End Game', style: 'destructive', onPress: doHostExit },
       ],
     );
   }
 
-  async function handleEndGame(): Promise<void> {
-    if (actionLoading || !sessionId) return;
-    setActionLoading(true);
-    navigatedRef.current = true;
-    try {
-      if (session?.status === 'spinning') {
-        await finishSession(sessionId);
-      } else {
-        await cancelGameSession(sessionId);
+  const handleResult = useCallback(
+    (_payerIdx: number): void => {
+      forceNewSpinRef.current = true;
+    },
+    [],
+  );
+
+  const handleSubmitEscapeAnswer = useCallback(
+    async (_answer: number): Promise<void> => {
+      // Restaurant host can never be challenged — no-op
+    },
+    [],
+  );
+
+  // Safety net: resolve expired challenges from spectator device
+  const resolvedDeadlineRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (challengeStatus !== 'pending' || !challengeDeadline || !sessionId) return;
+    if (resolvedDeadlineRef.current === challengeDeadline) return;
+
+    const msUntilCheck =
+      new Date(challengeDeadline).getTime() - Date.now() + ESCAPE_CHALLENGE.GRACE_MS;
+
+    const timer = setTimeout(() => {
+      resolvedDeadlineRef.current = challengeDeadline;
+      resolveExpiredChallenge(sessionId).catch((e) => {
+        console.error('resolveExpiredChallenge failed:', e);
+      });
+    }, Math.max(0, msUntilCheck));
+
+    return () => clearTimeout(timer);
+  }, [challengeStatus, challengeDeadline, sessionId]);
+
+  // Offline detection
+  const OFFLINE_THRESHOLD_MS = 10_000;
+  const GRACE_MS = 15_000;
+  const [offlineTick, setOfflineTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setOfflineTick((v) => v + 1), 3000);
+    return () => clearInterval(t);
+  }, []);
+
+  const offlinePlayers = useMemo(() => {
+    const now = Date.now();
+    return players.filter((p) => {
+      if (!p.user_id) return false;
+      if (!p.last_active_at) return false;
+      const joinedAgo = now - new Date(p.created_at).getTime();
+      if (joinedAgo < GRACE_MS) return false;
+      return now - new Date(p.last_active_at).getTime() > OFFLINE_THRESHOLD_MS;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [players, offlineTick]);
+
+  const allPlayersOnline = offlinePlayers.length === 0;
+
+  // Auto-kick offline players after 15 seconds
+  const kickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!sessionId || allPlayersOnline) {
+      if (kickTimerRef.current) {
+        clearTimeout(kickTimerRef.current);
+        kickTimerRef.current = null;
       }
-    } catch { /* best-effort */ }
-    router.replace('/(private)/dashboard/page');
+      return;
+    }
+    kickTimerRef.current = setTimeout(() => {
+      offlinePlayers.forEach((p) => {
+        kickOfflinePlayer(sessionId, p.id).catch((e) => {
+          console.error('kickOfflinePlayer failed:', e);
+        });
+      });
+    }, 15_000);
+    return () => {
+      if (kickTimerRef.current) clearTimeout(kickTimerRef.current);
+    };
+  }, [sessionId, allPlayersOnline, offlinePlayers]);
+
+  function handleGameEnd(): void {
+    Alert.alert(
+      'End Game',
+      'Are you sure you want to end this game?',
+      [
+        { text: 'Stay', style: 'cancel' },
+        { text: 'End Game', style: 'destructive', onPress: doHostExit },
+      ],
+    );
   }
 
   return (
-    <AppBackground>
-      <SafeAreaView style={styles.safeArea}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          style={styles.scrollView}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.header}>
-            <NavigationButton onPress={handleBack} arrow="arrow-back" />
-            <BubbleHeading
-              text="GAME TABLE"
-              fontSize={fontSize['2xl']}
-              align="center"
-            />
-            <View style={styles.headerSpacer} />
-          </View>
-
-          {/* Status Card */}
-          <View style={[styles.statusCard, isFinished && styles.statusCardFinished]}>
-            <Ionicons
-              name={statusIcon(session?.status)}
-              size={40}
-              color={isFinished ? colors.success : colors.textInverse}
-            />
-            <Text style={styles.statusLabel}>
-              {statusLabel(session?.status)}
-            </Text>
-            {session?.status === 'spinning' ? (
-              <Text style={styles.roundText}>Round {roundNumber}</Text>
-            ) : null}
-            {isFinished && durationText ? (
-              <Text style={styles.roundText}>Duration: {durationText}</Text>
-            ) : null}
-            {challengeStatus === 'pending' && challengedPlayer ? (
-              <Text style={styles.roundText}>
-                {challengedPlayer.player_name} has {challengeSeconds}s to escape!
-              </Text>
-            ) : null}
-          </View>
-
-          {/* Payer Result */}
-          {payerPlayer && (session?.status === 'spinning' || session?.status === 'finished') ? (
-            <View style={styles.resultCard}>
-              <View style={styles.resultAvatar}>
-                <Text style={styles.resultAvatarText}>
-                  {initialsFor(payerPlayer.player_name)}
-                </Text>
-              </View>
-              <View style={styles.resultInfo}>
-                <Text style={styles.resultName}>
-                  {payerPlayer.player_name}
-                </Text>
-                <Text style={styles.resultLabel}>PAYS THE BILL</Text>
-              </View>
-            </View>
-          ) : null}
-
-          {error ? (
-            <View style={styles.errorBanner}>
-              <Ionicons
-                name="alert-circle"
-                size={18}
-                color={colors.textInverse}
-              />
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : null}
-
-          {/* Player List */}
-          <Text style={styles.sectionTitle}>
-            PLAYERS ({players.length})
-          </Text>
-
-          {loading && players.length === 0 ? (
-            <ActivityIndicator
-              size="large"
-              color={colors.textInverse}
-              style={styles.loadingIndicator}
-            />
-          ) : (
-            <View style={styles.playersList}>
-              {players.map((player, idx) => (
-                <View
-                  key={player.id}
-                  style={[
-                    styles.playerRow,
-                    payerIndex === idx && styles.playerRowPayer,
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.playerAvatar,
-                      payerIndex === idx && styles.playerAvatarPayer,
-                    ]}
-                  >
-                    <Text style={styles.playerAvatarText}>
-                      {initialsFor(player.player_name)}
-                    </Text>
-                  </View>
-                  <Text style={styles.playerName}>
-                    {player.player_name}
-                  </Text>
-                  {payerIndex === idx ? (
-                    <View style={styles.paysBadge}>
-                      <Text style={styles.paysBadgeText}>PAYS</Text>
-                    </View>
-                  ) : null}
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Actions */}
-          <View style={styles.actions}>
-            <ActionButton
-              onPress={handleEndGame}
-              text={actionLoading ? 'ENDING...' : 'END TABLE'}
-              disabled={actionLoading}
-            />
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    </AppBackground>
+    <View style={{ flex: 1 }}>
+      <SpinWheelScreen
+        players={wheelPlayers}
+        loading={loading}
+        error={!!error}
+        requestWinner={requestWinner}
+        onBack={handleBack}
+        onRetry={refetch}
+        autoSpin={
+          !!session &&
+          isSpinning &&
+          payerIndex !== null &&
+          isEscapeContinuation
+        }
+        canSpin={allPlayersOnline}
+        spinKey={spinStartedAt}
+        onResult={handleResult}
+        onGameEnd={handleGameEnd}
+        challengeStatus={challengeStatus}
+        isChallengedPlayer={false}
+        challengedPlayerName={challengedPlayer?.player_name ?? null}
+        challengeStart={challengeStart}
+        challengeStep={challengeStep}
+        challengeDeadline={challengeDeadline}
+        onSubmitEscapeAnswer={handleSubmitEscapeAnswer}
+        onChallengeReady={() => {}}
+        statusMessage={
+          !allPlayersOnline
+            ? `${offlinePlayers.map((p) => p.player_name).join(', ')} is not here`
+            : null
+        }
+      />
+    </View>
   );
 }
